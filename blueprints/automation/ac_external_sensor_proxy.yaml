@@ -1,0 +1,648 @@
+blueprint:
+  name: AC External Sensor Proxy
+  description: >
+    Regulator klimatyzacji oparty o zewnętrzny czujnik temperatury.
+    Obsługuje harmonogram, strefę komfortu, wymuszanie IDLE, Overdrive,
+    tryb nocny, wentylator, żaluzje oraz opcjonalną ochronę dodatkowym
+    czujnikiem. Gdy dodatkowej ochrony nie chcesz używać, przypisz jako
+    safety_sensor ten sam czujnik co room_sensor i pozostaw safety_toggle OFF.
+  domain: automation
+  author: ChatGPT
+  homeassistant:
+    min_version: 2024.12.0
+
+  input:
+    main:
+      name: Podstawowe
+      icon: mdi:air-conditioner
+      input:
+        climate_entity:
+          name: Klimatyzator
+          selector:
+            entity:
+              filter:
+                domain: climate
+
+        room_sensor:
+          name: Główny czujnik pokoju
+          selector:
+            entity:
+              filter:
+                domain: sensor
+
+        target_temp:
+          name: Temperatura docelowa
+          selector:
+            entity:
+              filter:
+                domain: input_number
+
+        hysteresis:
+          name: Histereza
+          selector:
+            entity:
+              filter:
+                domain: input_number
+
+        scheduler:
+          name: Auto
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+
+        schedule_start:
+          name: Start harmonogramu
+          selector:
+            entity:
+              filter:
+                domain: input_datetime
+
+        schedule_end:
+          name: Koniec harmonogramu
+          selector:
+            entity:
+              filter:
+                domain: input_datetime
+
+    airflow:
+      name: Nawiew
+      icon: mdi:fan
+      input:
+        sleep_mode:
+          name: Tryb nocny
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+
+        fan_mode:
+          name: Wentylator
+          selector:
+            entity:
+              filter:
+                domain: input_select
+
+        vertical_swing:
+          name: Nawiew pionowy
+          selector:
+            entity:
+              filter:
+                domain: input_select
+
+        horizontal_swing:
+          name: Nawiew poziomy
+          selector:
+            entity:
+              filter:
+                domain: input_select
+
+    safety:
+      name: Ochrona dodatkowym czujnikiem
+      icon: mdi:shield-thermometer
+      collapsed: true
+      input:
+        safety_sensor:
+          name: Czujnik ochronny
+          description: >
+            Dla sypialni wybierz czujnik przy łóżeczku. Jeżeli drugi klimatyzator
+            ma tylko jeden czujnik, wybierz tutaj ponownie główny czujnik i
+            pozostaw przełącznik ochrony wyłączony.
+          selector:
+            entity:
+              filter:
+                domain: sensor
+
+        safety_toggle:
+          name: Przełącznik ochrony
+          selector:
+            entity:
+              filter:
+                domain: input_boolean
+
+        safety_limit:
+          name: Wyłącz przy
+          default: 22.5
+          selector:
+            number:
+              min: 16
+              max: 30
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+        safety_restart:
+          name: Ponowny start od
+          default: 23.0
+          selector:
+            number:
+              min: 16
+              max: 30
+              step: 0.1
+              mode: box
+              unit_of_measurement: "°C"
+
+    tuning:
+      name: Strojenie regulatora
+      icon: mdi:tune
+      collapsed: true
+      input:
+        overdrive_offset:
+          name: Overdrive
+          description: Ile poniżej temperatury widzianej przez AC ustawić cel, gdy AC jest IDLE mimo potrzeby chłodzenia.
+          default: 1.0
+          selector:
+            number:
+              min: 0.5
+              max: 3
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        idle_offset:
+          name: Offset IDLE
+          description: Ile powyżej temperatury widzianej przez AC ustawić cel w strefie komfortu.
+          default: 1.0
+          selector:
+            number:
+              min: 0.5
+              max: 3
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        cold_idle_offset:
+          name: Offset gdy za chłodno
+          default: 1.5
+          selector:
+            number:
+              min: 0.5
+              max: 4
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        normal_step:
+          name: Krok normalnej korekty
+          default: 0.5
+          selector:
+            number:
+              min: 0.5
+              max: 2
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        max_sync_offset:
+          name: Maksymalny offset Proxy
+          default: 4.0
+          selector:
+            number:
+              min: 1
+              max: 8
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        min_setpoint:
+          name: Minimalna nastawa klimatyzatora
+          default: 16.0
+          selector:
+            number:
+              min: 10
+              max: 25
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+        max_setpoint:
+          name: Maksymalna nastawa klimatyzatora
+          default: 30.0
+          selector:
+            number:
+              min: 20
+              max: 35
+              step: 0.5
+              mode: box
+              unit_of_measurement: "°C"
+
+variables:
+  climate_e: !input climate_entity
+  room_e: !input room_sensor
+  target_e: !input target_temp
+  hysteresis_e: !input hysteresis
+  scheduler_e: !input scheduler
+  start_e: !input schedule_start
+  end_e: !input schedule_end
+  sleep_e: !input sleep_mode
+  fan_e: !input fan_mode
+  vertical_e: !input vertical_swing
+  horizontal_e: !input horizontal_swing
+  safety_sensor_e: !input safety_sensor
+  safety_toggle_e: !input safety_toggle
+  safety_limit_v: !input safety_limit
+  safety_restart_v: !input safety_restart
+  overdrive_offset_v: !input overdrive_offset
+  idle_offset_v: !input idle_offset
+  cold_idle_offset_v: !input cold_idle_offset
+  normal_step_v: !input normal_step
+  max_sync_offset_v: !input max_sync_offset
+  min_setpoint_v: !input min_setpoint
+  max_setpoint_v: !input max_setpoint
+
+triggers:
+  - trigger: state
+    entity_id: !input room_sensor
+    id: room
+
+  - trigger: state
+    entity_id: !input safety_sensor
+    id: safety_sensor
+
+  - trigger: state
+    entity_id: !input safety_toggle
+    id: safety_toggle
+
+  - trigger: state
+    entity_id: !input target_temp
+    id: target
+
+  - trigger: state
+    entity_id: !input hysteresis
+    id: hysteresis
+
+  - trigger: state
+    entity_id: !input scheduler
+    id: scheduler
+
+  - trigger: state
+    entity_id: !input sleep_mode
+    id: sleep
+
+  - trigger: state
+    entity_id: !input fan_mode
+    id: fan
+
+  - trigger: state
+    entity_id: !input vertical_swing
+    id: vertical
+
+  - trigger: state
+    entity_id: !input horizontal_swing
+    id: horizontal
+
+  - trigger: state
+    entity_id: !input climate_entity
+    to: cool
+    id: climate_on
+
+  - trigger: state
+    entity_id: !input climate_entity
+    attribute: hvac_action
+    to: idle
+    id: climate_idle
+
+  - trigger: time
+    at: !input schedule_start
+    id: schedule_start
+
+  - trigger: time
+    at: !input schedule_end
+    id: schedule_end
+
+  - trigger: time_pattern
+    minutes: "/1"
+    id: heartbeat
+
+  - trigger: homeassistant
+    event: start
+    id: ha_start
+
+actions:
+  - variables:
+      trigger_id: "{{ trigger.id if trigger is defined and trigger.id is defined else 'manual' }}"
+      room_valid: "{{ states(room_e) not in ['unknown', 'unavailable', 'none', ''] }}"
+      safety_valid: "{{ states(safety_sensor_e) not in ['unknown', 'unavailable', 'none', ''] }}"
+      room_temp: "{{ states(room_e) | float(0) }}"
+      safety_temp: "{{ states(safety_sensor_e) | float(99) }}"
+      target_value: "{{ states(target_e) | float(23) }}"
+      hyst: "{{ states(hysteresis_e) | float(0.5) }}"
+      scheduler_on: "{{ is_state(scheduler_e, 'on') }}"
+      safety_enabled: "{{ is_state(safety_toggle_e, 'on') }}"
+      pan_temp_valid: "{{ state_attr(climate_e, 'current_temperature') is not none }}"
+      pan_target_valid: "{{ state_attr(climate_e, 'temperature') is not none }}"
+      pan_temp: "{{ state_attr(climate_e, 'current_temperature') | float(0) }}"
+      pan_target: "{{ state_attr(climate_e, 'temperature') | float(23) }}"
+      pan_action: "{{ state_attr(climate_e, 'hvac_action') | default('unknown', true) }}"
+      schedule_active: >
+        {% set n = now().strftime('%H:%M:%S') %}
+        {% set s = states(start_e) %}
+        {% set e = states(end_e) %}
+        {{
+          s == e
+          or (s < e and s <= n < e)
+          or (s > e and (n >= s or n < e))
+        }}
+
+  - variables:
+      upper: "{{ target_value | float + hyst | float }}"
+      lower: "{{ target_value | float - hyst | float }}"
+      demand: "{{ room_valid | bool and room_temp | float >= upper | float }}"
+      comfort: >
+        {{
+          room_valid | bool
+          and room_temp | float < upper | float
+          and room_temp | float > lower | float
+        }}
+      cold: "{{ room_valid | bool and room_temp | float <= lower | float }}"
+      safety_blocked: >
+        {{
+          safety_enabled | bool
+          and safety_valid | bool
+          and safety_temp | float <= safety_limit_v | float
+        }}
+      safety_runtime_ok: >
+        {{
+          not (safety_enabled | bool)
+          or (safety_valid | bool and safety_temp | float > safety_limit_v | float)
+        }}
+      safety_restart_ok: >
+        {{
+          not (safety_enabled | bool)
+          or (safety_valid | bool and safety_temp | float >= safety_restart_v | float)
+        }}
+      normal_tick: >
+        {{
+          trigger_id in ['target', 'climate_on']
+          or (trigger_id == 'heartbeat' and now().minute % 5 == 0)
+        }}
+      settings_event: >
+        {{
+          trigger_id in [
+            'sleep', 'fan', 'vertical', 'horizontal',
+            'schedule_start', 'scheduler', 'ha_start',
+            'climate_on', 'climate_idle'
+          ]
+        }}
+
+  - variables:
+      proxy_target: >
+        {% set raw = target_value | float + pan_temp | float - room_temp | float %}
+        {% set lo = [min_setpoint_v | float, target_value | float - max_sync_offset_v | float] | max %}
+        {% set hi = [max_setpoint_v | float, target_value | float + max_sync_offset_v | float] | min %}
+        {% set x = [hi, [lo, raw] | max] | min %}
+        {{ ((x * 2) | round(0) / 2) | float }}
+
+      overdrive_target: >
+        {% set x = pan_temp | float - overdrive_offset_v | float %}
+        {% set x = [max_setpoint_v | float, [min_setpoint_v | float, x] | max] | min %}
+        {{ ((x * 2) | round(0) / 2) | float }}
+
+      idle_target: >
+        {% set x = pan_temp | float + idle_offset_v | float %}
+        {% set x = [max_setpoint_v | float, [min_setpoint_v | float, x] | max] | min %}
+        {{ ((x * 2) | round(0) / 2) | float }}
+
+      cold_target: >
+        {% set x = pan_temp | float + cold_idle_offset_v | float %}
+        {% set x = [max_setpoint_v | float, [min_setpoint_v | float, x] | max] | min %}
+        {{ ((x * 2) | round(0) / 2) | float }}
+
+  - if:
+      - condition: template
+        value_template: >
+          {{
+            settings_event | bool
+            and scheduler_on | bool
+            and schedule_active | bool
+            and is_state(climate_e, 'cool')
+            and room_valid | bool
+            and not (safety_blocked | bool)
+            and (not (safety_enabled | bool) or safety_valid | bool)
+          }}
+    then:
+      - action: climate.set_fan_mode
+        target:
+          entity_id: !input climate_entity
+        data:
+          fan_mode: >
+            {% if is_state(sleep_e, 'on') %}
+              Low
+            {% else %}
+              {{ states(fan_e) }}
+            {% endif %}
+
+      - action: climate.set_preset_mode
+        target:
+          entity_id: !input climate_entity
+        data:
+          preset_mode: >
+            {% if is_state(sleep_e, 'on') %}
+              quiet
+            {% else %}
+              none
+            {% endif %}
+
+      - action: climate.set_swing_mode
+        target:
+          entity_id: !input climate_entity
+        data:
+          swing_mode: "{{ states(vertical_e) }}"
+
+      - action: climate.set_swing_horizontal_mode
+        target:
+          entity_id: !input climate_entity
+        data:
+          swing_horizontal_mode: "{{ states(horizontal_e) }}"
+
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ safety_enabled | bool and not (safety_valid | bool) }}"
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(climate_e) != 'off' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  hvac_mode: "off"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ safety_blocked | bool }}"
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(climate_e) != 'off' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  hvac_mode: "off"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ trigger_id == 'schedule_end' and scheduler_on | bool }}"
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(climate_e) != 'off' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  hvac_mode: "off"
+
+      - conditions:
+          - condition: template
+            value_template: "{{ not (scheduler_on | bool) }}"
+        sequence: []
+
+      - conditions:
+          - condition: template
+            value_template: "{{ not (schedule_active | bool) }}"
+        sequence: []
+
+      - conditions:
+          - condition: template
+            value_template: "{{ not (room_valid | bool) }}"
+        sequence:
+          - if:
+              - condition: template
+                value_template: "{{ states(climate_e) != 'off' }}"
+            then:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  hvac_mode: "off"
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                states(climate_e) != 'cool'
+                and demand | bool
+                and safety_restart_ok | bool
+              }}
+        sequence:
+          - action: climate.set_hvac_mode
+            target:
+              entity_id: !input climate_entity
+            data:
+              hvac_mode: cool
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_state(climate_e, 'cool')
+                and demand | bool
+                and safety_runtime_ok | bool
+                and pan_temp_valid | bool
+                and (pan_action == 'idle' or trigger_id == 'climate_on')
+              }}
+        sequence:
+          - if:
+              - condition: template
+                value_template: >
+                  {{
+                    not (pan_target_valid | bool)
+                    or (pan_target | float - overdrive_target | float) | abs >= 0.49
+                  }}
+            then:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  temperature: "{{ overdrive_target | float }}"
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_state(climate_e, 'cool')
+                and demand | bool
+                and safety_runtime_ok | bool
+                and pan_temp_valid | bool
+                and pan_target_valid | bool
+                and normal_tick | bool
+              }}
+        sequence:
+          - variables:
+              next_setpoint: >
+                {% set cur = pan_target | float %}
+                {% set dst = proxy_target | float %}
+                {% set step = normal_step_v | float %}
+                {% if dst > cur + 0.24 %}
+                  {{ [cur + step, dst] | min }}
+                {% elif dst < cur - 0.24 %}
+                  {{ [cur - step, dst] | max }}
+                {% else %}
+                  {{ cur }}
+                {% endif %}
+          - if:
+              - condition: template
+                value_template: "{{ (next_setpoint | float - pan_target | float) | abs >= 0.49 }}"
+            then:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  temperature: "{{ next_setpoint | float }}"
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_state(climate_e, 'cool')
+                and comfort | bool
+                and safety_runtime_ok | bool
+                and pan_temp_valid | bool
+              }}
+        sequence:
+          - if:
+              - condition: template
+                value_template: >
+                  {{
+                    not (pan_target_valid | bool)
+                    or pan_target | float < idle_target | float - 0.24
+                  }}
+            then:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  temperature: "{{ idle_target | float }}"
+
+      - conditions:
+          - condition: template
+            value_template: >
+              {{
+                is_state(climate_e, 'cool')
+                and cold | bool
+                and safety_runtime_ok | bool
+                and pan_temp_valid | bool
+              }}
+        sequence:
+          - if:
+              - condition: template
+                value_template: >
+                  {{
+                    not (pan_target_valid | bool)
+                    or pan_target | float < cold_target | float - 0.24
+                  }}
+            then:
+              - action: climate.set_temperature
+                target:
+                  entity_id: !input climate_entity
+                data:
+                  temperature: "{{ cold_target | float }}"
+
+mode: restart
+max_exceeded: silent

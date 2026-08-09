@@ -1,0 +1,195 @@
+input_boolean:
+  ac_scheduler_enabled:
+    name: Sterownik AC
+    icon: mdi:air-conditioner
+
+  ac_sleep_mode:
+    name: Tryb nocny
+
+  ac_child_protection:
+    name: Ochrona łóżeczka
+    icon: mdi:shield-baby
+
+  ac_kornelia_enabled:
+    name: Sterownik AC Kornelia
+    icon: mdi:air-conditioner
+
+  ac_kornelia_sleep:
+    name: Tryb nocny Kornelia
+
+  ac_kornelia_child_protection:
+    name: Ochrona dodatkowa Kornelia
+    icon: mdi:shield-off
+
+input_number:
+  ac_target_temp:
+    name: AC Temperatura
+    min: 16
+    max: 30
+    step: 0.5
+
+  ac_hysteresis:
+    name: AC Histereza
+    min: 0.2
+    max: 3
+    step: 0.1
+    initial: 0.5
+
+  ac_kornelia_target_temp:
+    name: AC Kornelia Temperatura
+    min: 16
+    max: 30
+    step: 0.5
+
+  ac_kornelia_hysteresis:
+    name: AC Kornelia Histereza
+    min: 0.2
+    max: 3
+    step: 0.1
+    initial: 0.5
+
+input_datetime:
+  ac_start_time:
+    name: AC Start
+    has_date: false
+    has_time: true
+
+  ac_end_time:
+    name: AC Koniec
+    has_date: false
+    has_time: true
+
+  ac_kornelia_start:
+    name: AC Kornelia Start
+    has_date: false
+    has_time: true
+
+  ac_kornelia_end:
+    name: AC Kornelia Koniec
+    has_date: false
+    has_time: true
+
+input_select:
+  ac_fan_mode:
+    name: AC Fan
+    options:
+      - Auto
+      - Low
+      - LowMid
+      - Mid
+      - HighMid
+      - High
+
+  ac_vertical_swing:
+    name: AC Vertical
+    options:
+      - Auto
+      - Up
+      - UpMid
+      - Mid
+      - DownMid
+      - Down
+      - Swing
+
+  ac_horizontal_swing:
+    name: AC Horizontal
+    options:
+      - Auto
+      - Left
+      - LeftMid
+      - Mid
+      - RightMid
+      - Right
+
+  ac_kornelia_fan:
+    name: AC Kornelia Fan
+    options:
+      - Auto
+      - Low
+      - LowMid
+      - Mid
+      - HighMid
+      - High
+
+  ac_kornelia_vertical:
+    name: AC Kornelia Vertical
+    options:
+      - Auto
+      - Up
+      - UpMid
+      - Mid
+      - DownMid
+      - Down
+      - Swing
+
+  ac_kornelia_horizontal:
+    name: AC Kornelia Horizontal
+    options:
+      - Auto
+      - Left
+      - LeftMid
+      - Mid
+      - RightMid
+      - Right
+
+automation:
+  - id: ac_sypialnia_external_sensor_proxy
+    alias: AC SYPIALNIA - EXTERNAL SENSOR PROXY
+    use_blueprint:
+      path: kamil/ac_external_sensor_proxy.yaml
+      input:
+        climate_entity: climate.klima_sypialnia
+        room_sensor: sensor.templazienka_temperature
+        target_temp: input_number.ac_target_temp
+        hysteresis: input_number.ac_hysteresis
+        scheduler: input_boolean.ac_scheduler_enabled
+        schedule_start: input_datetime.ac_start_time
+        schedule_end: input_datetime.ac_end_time
+        sleep_mode: input_boolean.ac_sleep_mode
+        fan_mode: input_select.ac_fan_mode
+        vertical_swing: input_select.ac_vertical_swing
+        horizontal_swing: input_select.ac_horizontal_swing
+        safety_sensor: sensor.tempsypialnia_temperature
+        safety_toggle: input_boolean.ac_child_protection
+        safety_limit: 22.5
+        safety_restart: 23.0
+        overdrive_offset: 1.0
+        idle_offset: 1.0
+        cold_idle_offset: 1.5
+        normal_step: 0.5
+        max_sync_offset: 4.0
+        min_setpoint: 16.0
+        max_setpoint: 30.0
+
+  - id: ac_kornelia_external_sensor_proxy
+    alias: AC KORNELIA - EXTERNAL SENSOR PROXY
+    use_blueprint:
+      path: kamil/ac_external_sensor_proxy.yaml
+      input:
+        climate_entity: climate.kornelia_pokoj
+        room_sensor: sensor.temppokoj_temperature
+        target_temp: input_number.ac_kornelia_target_temp
+        hysteresis: input_number.ac_kornelia_hysteresis
+        scheduler: input_boolean.ac_kornelia_enabled
+        schedule_start: input_datetime.ac_kornelia_start
+        schedule_end: input_datetime.ac_kornelia_end
+        sleep_mode: input_boolean.ac_kornelia_sleep
+        fan_mode: input_select.ac_kornelia_fan
+        vertical_swing: input_select.ac_kornelia_vertical
+        horizontal_swing: input_select.ac_kornelia_horizontal
+
+        # Kornelia ma tylko jeden czujnik temperatury.
+        # Ten sam sensor jest wpisany jako safety_sensor, ale ochrona pozostaje OFF,
+        # więc nie bierze udziału w sterowaniu.
+        safety_sensor: sensor.temppokoj_temperature
+        safety_toggle: input_boolean.ac_kornelia_child_protection
+        safety_limit: 22.5
+        safety_restart: 23.0
+
+        overdrive_offset: 1.0
+        idle_offset: 1.0
+        cold_idle_offset: 1.5
+        normal_step: 0.5
+        max_sync_offset: 4.0
+        min_setpoint: 16.0
+        max_setpoint: 30.0
