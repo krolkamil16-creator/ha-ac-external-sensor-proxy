@@ -16,50 +16,15 @@ Blueprint for Home Assistant that controls an air conditioner from an external r
 - Safety cutoff and restart threshold
 - Can also be used with only one temperature sensor
 
-## Import blueprint
+## One-click import
 
-> Before publishing, replace `YOUR_GITHUB_USERNAME` in this README with your GitHub username.
+[![Open your Home Assistant instance and show the blueprint import dialog with the blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fraw.githubusercontent.com%2Fkrolkamil16-creator%2Fha-ac-external-sensor-proxy%2Frefs%2Fheads%2Fmain%2Fblueprints%2Fautomation%2Fac_external_sensor_proxy.yaml)
 
-[![Open your Home Assistant instance and show the blueprint import dialog with a specific blueprint pre-filled.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2FYOUR_GITHUB_USERNAME%2Fha-ac-external-sensor-proxy%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Fac_external_sensor_proxy.yaml)
+Manual blueprint URL:
 
-Home Assistant can import automation blueprints directly from GitHub.
+`https://github.com/krolkamil16-creator/ha-ac-external-sensor-proxy/blob/main/blueprints/automation/ac_external_sensor_proxy.yaml`
 
-Blueprint file:
-
-`blueprints/automation/ac_external_sensor_proxy.yaml`
-
-## Example setup
-
-### Bedroom with two sensors
-
-Main room sensor:
-`solar?` No — use the actual room sensor, for example:
-
-`room_sensor: sensor.templazienka_temperature`
-
-Safety sensor near the crib:
-
-`safety_sensor: sensor.tempsypialnia_temperature`
-
-Typical safety values:
-
-- Cutoff: `22.5 °C`
-- Restart: `23.0 °C`
-
-### Second Panasonic with one sensor
-
-Use the same room sensor as `safety_sensor`, but keep the associated safety toggle OFF. In that configuration the safety branch is ignored.
-
-## Suggested tuning
-
-- Hysteresis: `0.5 °C`
-- Overdrive offset: `1.0 °C`
-- IDLE offset: `1.0 °C`
-- Cold IDLE offset: `1.5 °C`
-- Normal correction step: `0.5 °C`
-- Maximum proxy offset: `4.0 °C`
-
-## How the control logic works
+## How it works
 
 For a target of `23.0 °C` with `0.5 °C` hysteresis:
 
@@ -69,18 +34,45 @@ For a target of `23.0 °C` with `0.5 °C` hysteresis:
 
 If the AC reports `idle` while the external room sensor still shows cooling demand, Overdrive sets the physical target below the AC's own measured temperature.
 
-## Files
+## Example: bedroom with two sensors
+
+Main room sensor:
+
+`room_sensor: sensor.templazienka_temperature`
+
+Safety sensor near the crib:
+
+`safety_sensor: sensor.tempsypialnia_temperature`
+
+Recommended starting values:
+
+- Safety cutoff: `22.5 °C`
+- Safety restart: `23.0 °C`
+- Hysteresis: `0.5 °C`
+- Overdrive offset: `1.0 °C`
+- IDLE offset: `1.0 °C`
+- Cold IDLE offset: `1.5 °C`
+- Normal correction step: `0.5 °C`
+- Maximum proxy offset: `4.0 °C`
+
+## Example: second Panasonic with one sensor
+
+Use the room sensor as the main sensor.
+
+If you do not want second-sensor protection, keep the associated safety toggle OFF. The safety branch is then ignored.
+
+## Repository files
 
 - `blueprints/automation/ac_external_sensor_proxy.yaml` — reusable blueprint
-- `packages/ac.example.yaml` — example Home Assistant package with two configured Panasonic automations
-- `examples/configuration.yaml` — minimal `configuration.yaml` using packages
+- `packages/ac.example.yaml` — example Home Assistant package
+- `examples/configuration.yaml` — minimal configuration using packages
 - `install_ac_proxy.sh` — migration helper for Home Assistant OS / Terminal & SSH
 
 ## Important
 
-Before enabling this blueprint, disable older automations that also change the same climate entity's HVAC mode, target temperature, fan mode, preset, or swing settings. Two independent controllers acting on the same AC will conflict.
+Before enabling the blueprint, disable older automations that also change the same climate entity's HVAC mode, target temperature, fan mode, preset, or swing settings. Two independent controllers acting on the same AC will conflict.
 
-The installer creates backups and runs `ha core check`, but review the example entity IDs before using it on another Home Assistant installation.
+Review all example entity IDs before using the package or installer on another Home Assistant installation.
 
 ## License
 
